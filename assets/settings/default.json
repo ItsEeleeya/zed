@@ -124,7 +124,7 @@
   // and available for keybinding, but vim doesn't take over the editor.
   // You must explicitly bind keys to vim actions in your keymap.
   // Example (select inside quotes): { "context": "Editor", "bindings": { "cmd-'": ["action::Sequence", ["vim::SwitchToVisualMode", ["vim::PushObject", { "around": false }], "vim::Quotes", "vim::SwitchToNormalPreservingSelections"]] } }
-  "vim_passive_mode": false,
+  "passive_modal_actions": false,
   // Whether to enable helix mode and key bindings.
   // Enabling this mode will automatically enable vim mode.
   "helix_mode": false,

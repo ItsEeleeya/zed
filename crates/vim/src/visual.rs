@@ -427,22 +427,9 @@ impl Vim {
         cx: &mut Context<Vim>,
     ) {
         if let Some(Operator::Object { around }) = self.active_operator() {
-            log::info!(
-                "[VIM][visual_object] invoked: mode={:?} op={:?} passive_mode={}",
-                self.mode,
-                self.active_operator(),
-                self.passive_mode
-            );
             self.pop_operator(window, cx);
             let current_mode = self.mode;
             let target_mode = object.target_visual_mode(current_mode, around);
-            log::info!(
-                "[VIM][visual_object] start: current_mode={:?} target_mode={:?} around={} count={:?}",
-                current_mode,
-                target_mode,
-                around,
-                count
-            );
             if target_mode != current_mode {
                 self.switch_mode(target_mode, true, window, cx);
             }
@@ -466,14 +453,7 @@ impl Vim {
 
                         let original_point = selection.tail().to_point(map);
 
-                        let __vim_passive_range = object.range(map, mut_selection, around, count);
-                        log::info!(
-                            "[VIM][visual_object] range computed: found={} around={} count={:?}",
-                            __vim_passive_range.is_some(),
-                            around,
-                            count
-                        );
-                        if let Some(range) = __vim_passive_range {
+                        if let Some(range) = object.range(map, mut_selection, around, count) {
                             if !range.is_empty() {
                                 let expand_both_ways = object.always_expands_both_ways()
                                     || selection.is_empty()

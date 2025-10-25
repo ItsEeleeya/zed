@@ -1100,13 +1100,13 @@ pub(crate) fn settings_data(cx: &App) -> Vec<SettingsPage> {
                     files: USER,
                 }),
                 SettingsPageItem::SettingItem(SettingItem {
-                    title: "Vim Passive Mode",
-                    description: "Enable vim actions for keybinding without modal editing. All vim actions are available but the editor stays in normal mode. You must explicitly bind keys to vim actions in your keymap.",
+                    title: "Passive Modal Actions",
+                    description: "Enable Vim actions for keybinding without modal editing. All vim actions are available but the editor stays in normal mode. You must explicitly bind keys to Vim (and Helix) actions in your keymap.",
                     field: Box::new(SettingField {
-                        json_path: Some("vim_passive_mode"),
-                        pick: |settings_content| settings_content.vim_passive_mode.as_ref(),
+                        json_path: Some("passive_modal_actions"),
+                        pick: |settings_content| settings_content.passive_modal_actions.as_ref(),
                         write: |settings_content, value| {
-                            settings_content.vim_passive_mode = value;
+                            settings_content.passive_modal_actions = value;
                         },
                     }),
                     metadata: None,

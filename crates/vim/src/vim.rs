@@ -48,8 +48,8 @@ use surrounds::SurroundsType;
 use theme::ThemeSettings;
 use ui::{IntoElement, SharedString, px};
 use vim_mode_setting::HelixModeSetting;
+use vim_mode_setting::PassiveModalActionsSetting;
 use vim_mode_setting::VimModeSetting;
-use vim_mode_setting::VimPassiveModeSetting;
 use workspace::{self, Pane, Workspace};
 
 use crate::{
@@ -524,8 +524,6 @@ impl Vim {
     pub fn new(window: &mut Window, cx: &mut Context<Editor>, passive_mode: bool) -> Entity<Self> {
         let editor = cx.entity();
 
-        log::info!("[VIM] Creating Vim entity (passive_mode: {})", passive_mode);
-
         let initial_vim_mode = VimSettings::get_global(cx).default_mode;
         let (mode, last_mode) = if HelixModeSetting::get_global(cx).0 {
             let initial_helix_mode = match initial_vim_mode {
@@ -541,19 +539,17 @@ impl Vim {
         };
 
         cx.new(|cx| {
-            // In passive mode, only subscribe to editor events so vim can track changes (change list / last-modification mark)
+            // In passive mode we only subscribe to editor events so vim can track changes (change list or last-modification mark)
             // without intercepting keystrokes.
             let subscriptions = if passive_mode {
-                log::info!("[VIM] Passive mode: Subscribing to editor events for change list");
                 vec![cx.subscribe_in(
                     &editor,
                     window,
-                    |this, _editor_entity, event, window, cx| {
+                    |this: &mut Vim, _editor_entity, event, window, cx| {
                         this.handle_editor_event(event, window, cx)
                     },
                 )]
             } else {
-                log::info!("[VIM] Full vim mode: Creating subscriptions");
                 vec![
                     cx.observe_keystrokes(Self::observe_keystrokes),
                     cx.subscribe_in(
@@ -986,39 +982,7 @@ impl Vim {
         cx: &mut Context<Vim>,
         f: impl Fn(&mut Vim, &A, &mut Window, &mut Context<Vim>) + 'static,
     ) {
-        // Wrap the provided action to ensure we sync Vim/editor state around the action
-        // when passive mode is enabled. Also log action boundaries to help debug keybinds.
-        let wrapped =
-            move |vim: &mut Vim, action: &A, window: &mut Window, cx: &mut Context<Vim>| {
-                let action_name = std::any::type_name::<A>();
-                log::info!(
-                    "[VIM][Action START] passive_mode={} mode={:?} op={:?} action={}",
-                    vim.passive_mode,
-                    vim.mode,
-                    vim.active_operator(),
-                    action_name
-                );
-
-                if vim.passive_mode {
-                    vim.sync_vim_settings(window, cx);
-                }
-
-                f(vim, action, window, cx);
-
-                if vim.passive_mode {
-                    vim.sync_vim_settings(window, cx);
-                }
-
-                log::info!(
-                    "[VIM][Action END]   passive_mode={} mode={:?} op={:?} action={}",
-                    vim.passive_mode,
-                    vim.mode,
-                    vim.active_operator(),
-                    action_name
-                );
-            };
-
-        let subscription = editor.register_action(cx.listener(wrapped));
+        let subscription = editor.register_action(cx.listener(f));
         cx.on_release(|_, _| drop(subscription)).detach();
     }
 
@@ -1036,33 +1000,15 @@ impl Vim {
     }
 
     pub fn enabled(cx: &mut App) -> bool {
-        let vim_mode = VimModeSetting::get_global(cx).0;
-        let helix_mode = HelixModeSetting::get_global(cx).0;
-        let passive_mode = VimPassiveModeSetting::get_global(cx).0;
-        let enabled = vim_mode || helix_mode || passive_mode;
-        log::debug!(
-            "[VIM] enabled() check: vim_mode={}, helix_mode={}, passive_mode={} => {}",
-            vim_mode,
-            helix_mode,
-            passive_mode,
-            enabled
-        );
-        enabled
+        VimModeSetting::get_global(cx).0
+            || HelixModeSetting::get_global(cx).0
+            || PassiveModalActionsSetting::get_global(cx).0
     }
 
     pub fn is_passive_mode(cx: &mut App) -> bool {
-        let vim_mode = VimModeSetting::get_global(cx).0;
-        let helix_mode = HelixModeSetting::get_global(cx).0;
-        let passive_mode = VimPassiveModeSetting::get_global(cx).0;
-        let is_passive = passive_mode && !vim_mode && !helix_mode;
-        log::debug!(
-            "[VIM] is_passive_mode() check: passive_mode={}, vim_mode={}, helix_mode={} => {}",
-            passive_mode,
-            vim_mode,
-            helix_mode,
-            is_passive
-        );
-        is_passive
+        !VimModeSetting::get_global(cx).0
+            && !HelixModeSetting::get_global(cx).0
+            && PassiveModalActionsSetting::get_global(cx).0
     }
 
     /// Called whenever an keystroke is typed so vim can observe all actions
@@ -1144,7 +1090,11 @@ impl Vim {
             }
             EditorEvent::Edited { .. } => self.push_to_change_list(window, cx),
             EditorEvent::FocusedIn => self.sync_vim_settings(window, cx),
-            EditorEvent::CursorShapeChanged => self.cursor_shape_changed(window, cx),
+            EditorEvent::CursorShapeChanged => {
+                if !self.passive_mode {
+                    self.cursor_shape_changed(window, cx);
+                }
+            }
             EditorEvent::PushedToNavHistory {
                 anchor,
                 is_deactivate,
@@ -1367,15 +1317,9 @@ impl Vim {
         // In passive mode, prefer the editor's configured cursor for all non-visual modes.
         // This keeps the cursor as a bar (or user-configured shape) outside of transient visual ops.
         if self.passive_mode {
-            match self.mode {
-                Mode::Visual | Mode::VisualLine | Mode::VisualBlock | Mode::HelixSelect => {
-                    // Fall through to visual cursor handling below.
-                }
-                _ => {
-                    let editor_settings = EditorSettings::get_global(cx);
-                    return editor_settings.cursor_shape.unwrap_or_default();
-                }
-            }
+            return EditorSettings::get_global(cx)
+                .cursor_shape
+                .unwrap_or_default();
         }
 
         let cursor_shape = VimSettings::get_global(cx).cursor_shape;
@@ -1510,7 +1454,8 @@ impl Vim {
         let editor = editor.read(cx);
         let editor_mode = editor.mode();
 
-        if editor_mode.is_full()
+        if !self.passive_mode
+            && editor_mode.is_full()
             && !newest_selection_empty
             && self.mode == Mode::Normal
             // When following someone, don't switch vim mode.
@@ -2087,7 +2032,7 @@ impl Vim {
             };
             editor.set_clip_at_line_ends(clip_at_line_ends, cx);
 
-            let collapse_matches = if vim.passive_mode { false } else { true };
+            let collapse_matches = !vim.passive_mode;
             editor.set_collapse_matches(collapse_matches);
 
             editor.set_input_enabled(input_enabled);

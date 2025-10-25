@@ -157,7 +157,7 @@ pub struct SettingsContent {
     /// You must explicitly bind keys to vim actions in your keymap.
     ///
     /// Default: false
-    pub vim_passive_mode: Option<bool>,
+    pub passive_modal_actions: Option<bool>,
 
     // Settings related to calls in Zed
     pub calls: Option<CallSettingsContent>,
