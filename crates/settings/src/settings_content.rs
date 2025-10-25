@@ -151,10 +151,10 @@ pub struct SettingsContent {
     /// Default: false
     pub vim_mode: Option<bool>,
 
-    /// Whether or not to enable Vim passive mode.
-    /// When enabled (and vim_mode is disabled), all vim actions are registered
-    /// and available for keybinding, but vim doesn't take over the editor.
-    /// You must explicitly bind keys to vim actions in your keymap.
+    /// Whether or not to enable Passive Modal Actions mode.
+    /// When enabled (and both vim_mode and helix_mode are disabled), all modal editing actions are registered
+    /// and available for keybinding, but it doesn't take over the editor.
+    /// User must explicitly bind keys to vim actions in the keymap.
     ///
     /// Default: false
     pub passive_modal_actions: Option<bool>,

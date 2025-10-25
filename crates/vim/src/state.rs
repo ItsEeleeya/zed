@@ -714,7 +714,9 @@ impl VimGlobals {
             }
             was_enabled = Some(is_enabled);
             if is_enabled {
-                KeyBinding::set_vim_mode(cx, true);
+                if !Vim::is_passive_mode(cx) {
+                    KeyBinding::set_vim_mode(cx, true);
+                }
                 CommandPaletteFilter::update_global(cx, |filter, _| {
                     filter.show_namespace(Vim::NAMESPACE);
                 });
