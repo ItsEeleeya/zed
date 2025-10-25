@@ -11,6 +11,7 @@ use settings::{Settings, SettingsContent};
 pub fn init(cx: &mut App) {
     VimModeSetting::register(cx);
     HelixModeSetting::register(cx);
+    VimPassiveModeSetting::register(cx);
 }
 
 pub struct VimModeSetting(pub bool);
@@ -26,5 +27,13 @@ pub struct HelixModeSetting(pub bool);
 impl Settings for HelixModeSetting {
     fn from_settings(content: &SettingsContent) -> Self {
         Self(content.helix_mode.unwrap())
+    }
+}
+
+pub struct VimPassiveModeSetting(pub bool);
+
+impl Settings for VimPassiveModeSetting {
+    fn from_settings(content: &SettingsContent) -> Self {
+        Self(content.vim_passive_mode.unwrap())
     }
 }

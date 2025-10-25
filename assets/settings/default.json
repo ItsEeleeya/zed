@@ -119,6 +119,12 @@
   "multi_cursor_modifier": "alt",
   // Whether to enable vim modes and key bindings.
   "vim_mode": false,
+  // Whether to enable vim passive mode.
+  // When enabled (and vim_mode is disabled), all vim actions are registered
+  // and available for keybinding, but vim doesn't take over the editor.
+  // You must explicitly bind keys to vim actions in your keymap.
+  // Example (select inside quotes): { "context": "Editor", "bindings": { "cmd-'": ["action::Sequence", ["vim::SwitchToVisualMode", ["vim::PushObject", { "around": false }], "vim::Quotes", "vim::SwitchToNormalPreservingSelections"]] } }
+  "vim_passive_mode": false,
   // Whether to enable helix mode and key bindings.
   // Enabling this mode will automatically enable vim mode.
   "helix_mode": false,

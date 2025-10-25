@@ -151,6 +151,14 @@ pub struct SettingsContent {
     /// Default: false
     pub vim_mode: Option<bool>,
 
+    /// Whether or not to enable Vim passive mode.
+    /// When enabled (and vim_mode is disabled), all vim actions are registered
+    /// and available for keybinding, but vim doesn't take over the editor.
+    /// You must explicitly bind keys to vim actions in your keymap.
+    ///
+    /// Default: false
+    pub vim_passive_mode: Option<bool>,
+
     // Settings related to calls in Zed
     pub calls: Option<CallSettingsContent>,
 

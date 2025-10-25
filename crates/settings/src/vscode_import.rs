@@ -214,6 +214,7 @@ impl VsCodeSettings {
             title_bar: None,
             vim: None,
             vim_mode: None,
+            vim_passive_mode: None,
             workspace: self.workspace_settings_content(),
         }
     }

@@ -70,17 +70,29 @@ impl Vim {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        log::info!(
+            "[VIM][yank_object] start: around={} times={:?}",
+            around,
+            times
+        );
         self.update_editor(cx, |vim, editor, cx| {
             editor.transact(window, cx, |editor, window, cx| {
                 editor.set_clip_at_line_ends(false, cx);
                 let mut start_positions: HashMap<_, _> = Default::default();
                 editor.change_selections(SelectionEffects::no_scroll(), window, cx, |s| {
                     s.move_with(|map, selection| {
-                        object.expand_selection(map, selection, around, times);
+                        let __expanded = object.expand_selection(map, selection, around, times);
+                        log::info!(
+                            "[VIM][yank_object] expand_selection: expanded={} around={} times={:?}",
+                            __expanded,
+                            around,
+                            times
+                        );
                         let start_position = (selection.start, selection.goal);
                         start_positions.insert(selection.id, start_position);
                     });
                 });
+                log::info!("[VIM][yank_object] calling yank_selections_content");
                 vim.yank_selections_content(editor, MotionKind::Exclusive, window, cx);
                 editor.change_selections(SelectionEffects::no_scroll(), window, cx, |s| {
                     s.move_with(|_, selection| {
@@ -88,8 +100,10 @@ impl Vim {
                         selection.collapse_to(head, goal);
                     });
                 });
+                log::info!("[VIM][yank_object] end of transaction");
             });
         });
+        log::info!("[VIM][yank_object] exit_temporary_normal");
         self.exit_temporary_normal(window, cx);
     }
 
@@ -146,6 +160,12 @@ impl Vim {
         window: &mut Window,
         cx: &mut Context<Editor>,
     ) {
+        log::info!(
+            "[VIM][copy_ranges] is_yank={} kind={:?} selections_count={}",
+            is_yank,
+            kind,
+            selections.len()
+        );
         let buffer = editor.buffer().read(cx).snapshot(cx);
         self.set_mark(
             "[".to_string(),
@@ -200,6 +220,12 @@ impl Vim {
                     first_line_indent: buffer.indent_size_for_line(MultiBufferRow(start.row)).len,
                 });
             }
+            log::info!(
+                "[VIM][copy_ranges] prepared_text_len={} ranges_to_highlight={} clipboard_selections={}",
+                text.len(),
+                ranges_to_highlight.len(),
+                clipboard_selections.len()
+            );
         }
 
         let selected_register = self.selected_register.take();
@@ -215,6 +241,7 @@ impl Vim {
                 cx,
             )
         });
+        log::info!("[VIM][copy_ranges] registers written (is_yank={})", is_yank);
 
         let highlight_duration = VimSettings::get_global(cx).highlight_on_yank_duration;
         if !is_yank || self.mode == Mode::Visual || highlight_duration == 0 {
