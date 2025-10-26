@@ -633,7 +633,6 @@ impl Vim {
 
     fn activate(editor: &mut Editor, window: &mut Window, cx: &mut Context<Editor>) {
         let passive_mode = Vim::is_passive_mode(cx);
-        log::info!("[VIM] Activating vim (passive_mode: {})", passive_mode);
         let vim = Vim::new(window, cx, passive_mode);
 
         // In passive mode, don't set vim mode - keep editor in normal state
@@ -1117,13 +1116,6 @@ impl Vim {
             self.start_recording(cx);
         }
 
-        log::info!(
-            "[VIM][push_operator] pushing operator: {:?} (passive_mode={}, mode={:?})",
-            operator,
-            self.passive_mode,
-            self.mode
-        );
-
         // Since these operations can only be entered with pre-operators,
         // we need to clear the previous operators when pushing,
         // so that the current stack is the most correct
@@ -1134,18 +1126,9 @@ impl Vim {
                 | Operator::DeleteSurrounds
                 | Operator::Exchange
         ) {
-            log::info!(
-                "[VIM][push_operator] clearing operator stack for pre-operator {:?}",
-                operator
-            );
             self.operator_stack.clear();
         };
         self.operator_stack.push(operator);
-        log::info!(
-            "[VIM][push_operator] operator pushed. stack_len={}",
-            self.operator_stack.len()
-        );
-
         self.sync_vim_settings(window, cx);
     }
 
@@ -1170,13 +1153,6 @@ impl Vim {
         let last_mode = self.mode;
         let prior_mode = self.last_mode;
         let prior_tx = self.current_tx;
-        log::info!(
-            "[VIM] switch_mode: {:?} -> {:?} (leave_selections={}, passive_mode={})",
-            last_mode,
-            mode,
-            leave_selections,
-            self.passive_mode
-        );
         self.status_label.take();
         self.last_mode = last_mode;
         self.mode = mode;
@@ -1314,8 +1290,6 @@ impl Vim {
     }
 
     pub fn cursor_shape(&self, cx: &mut App) -> CursorShape {
-        // In passive mode, prefer the editor's configured cursor for all non-visual modes.
-        // This keeps the cursor as a bar (or user-configured shape) outside of transient visual ops.
         if self.passive_mode {
             return EditorSettings::get_global(cx)
                 .cursor_shape
@@ -1356,7 +1330,7 @@ impl Vim {
     }
 
     pub fn editor_input_enabled(&self) -> bool {
-        // In passive mode, Vim never disables the editor's input.
+        // In passive mode, we do not want Vim to disable the editor's input.
         if self.passive_mode {
             return true;
         }
@@ -1384,6 +1358,12 @@ impl Vim {
     }
 
     pub fn clip_at_line_ends(&self) -> bool {
+        // In passive mode, we only want to clip during operations
+        if self.passive_mode {
+            return (self.mode.is_visual() || self.active_operator().is_some())
+                && matches!(self.mode, Mode::Normal);
+        }
+
         match self.mode {
             Mode::Insert
             | Mode::Visual
@@ -1986,66 +1966,18 @@ impl Vim {
     }
 
     fn sync_vim_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        // In passive mode, we always sync cursor shape and selections to ensure
-        // proper visual feedback when using text object keybindings
-        if self.passive_mode {
-            log::debug!(
-                "[VIM] Passive mode: Syncing vim settings for mode {:?}",
-                self.mode
-            );
-        }
-
-        // Compute desired cursor shape and input behavior for passive mode to avoid stale state.
-        let desired_cursor_shape = if self.passive_mode {
-            match self.mode {
-                Mode::Visual | Mode::VisualLine | Mode::VisualBlock | Mode::HelixSelect => {
-                    self.cursor_shape(cx)
-                }
-                _ => {
-                    let editor_settings = EditorSettings::get_global(cx);
-                    editor_settings.cursor_shape.unwrap_or_default()
-                }
-            }
-        } else {
-            self.cursor_shape(cx)
-        };
-
-        let input_enabled = if self.passive_mode {
-            true
-        } else {
-            self.editor_input_enabled()
-        };
-
         self.update_editor(cx, |vim, editor, cx| {
-            editor.set_cursor_shape(desired_cursor_shape, cx);
-
-            // In passive mode, match Vim's clipping only during active Vim operations (visual or with an operator).
-            // Otherwise, keep normal editor behavior (no clipping) to avoid cursor getting stuck at line ends.
-            let clip_at_line_ends = if vim.passive_mode {
-                if vim.mode.is_visual() || vim.active_operator().is_some() {
-                    vim.clip_at_line_ends()
-                } else {
-                    false
-                }
-            } else {
-                vim.clip_at_line_ends()
-            };
-            editor.set_clip_at_line_ends(clip_at_line_ends, cx);
-
-            let collapse_matches = !vim.passive_mode;
-            editor.set_collapse_matches(collapse_matches);
-
-            editor.set_input_enabled(input_enabled);
+            editor.set_cursor_shape(vim.cursor_shape(cx), cx);
+            editor.set_clip_at_line_ends(vim.clip_at_line_ends(), cx);
+            editor.set_collapse_matches(true);
+            editor.set_input_enabled(vim.editor_input_enabled());
             editor.set_autoindent(vim.should_autoindent());
             editor
                 .selections
                 .set_line_mode(matches!(vim.mode, Mode::VisualLine));
 
-            let hide_edit_predictions = if vim.passive_mode {
-                false
-            } else {
-                !matches!(vim.mode, Mode::Insert | Mode::Replace)
-            };
+            let hide_edit_predictions =
+                !(vim.passive_mode || matches!(vim.mode, Mode::Insert | Mode::Replace));
             editor.set_edit_predictions_hidden_for_vim_mode(hide_edit_predictions, window, cx);
         });
         cx.notify()

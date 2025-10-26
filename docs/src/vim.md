@@ -45,6 +45,137 @@ If you missed this, you can toggle vim mode on or off anytime by opening the com
 > }
 > ```
 
+## Always-On Modal Actions (without modal editing)
+
+If you want to use Vim's powerful text objects and operators (like "delete inside quotes" or "change around parentheses") without entering full modal editing mode, you can enable always-on modal actions. This keeps your editor in normal insert mode while making all Vim actions available for custom keybindings.
+
+### Enabling always-on modal actions
+
+Add this to your settings:
+
+```json [settings]
+{
+  "passive_modal_actions": true
+}
+```
+
+With this enabled:
+
+- The editor stays in insert mode by default (you can type normally)
+- Your cursor remains a bar (not a block)
+- All Vim operators and text objects are available but only when you explicitly bind them
+- No Vim keybindings are active by default—you must configure your own
+
+### Example keybindings
+
+Here are some useful keybindings you can add to your `keymap.json`:
+
+```json [keymap.json]
+[
+  // Delete inside quotes
+  {
+    "context": "Editor",
+    "bindings": {
+      "cmd-'": [
+        "action::Sequence",
+        [
+          "vim::PushDelete",
+          ["vim::PushObject", { "around": false }],
+          "vim::AnyQuotes"
+        ]
+      ]
+    }
+  },
+
+  // Select inside parentheses (4-step sequence)
+  {
+    "context": "Editor",
+    "bindings": {
+      "cmd-'": [
+        "action::Sequence",
+        [
+          "vim::SwitchToVisualMode",
+          ["vim::PushObject", { "around": false }],
+          "vim::AnyQuotes",
+          "vim::SwitchToNormalPreservingSelections"
+        ]
+      ]
+    }
+  },
+
+  // Change around brackets
+  {
+    "context": "Editor",
+    "bindings": {
+      "cmd-[": [
+        "vim::Change",
+        "vim::PushObject",
+        { "around": true },
+        "vim::SquareBrackets"
+      ]
+    }
+  },
+
+  // Yank inside word
+  {
+    "context": "Editor",
+    "bindings": {
+      "cmd-shift-c": [
+        "vim::Yank",
+        "vim::PushObject",
+        { "around": false },
+        "vim::Word"
+      ]
+    }
+  }
+]
+```
+
+### Two patterns for using text objects
+
+There are two ways to use Vim text objects with always-on modal actions:
+
+#### Pattern 1: Operator + Text Object (for modifications)
+
+Use this for operations that modify the buffer (delete, change, yank):
+
+```json
+["vim::Delete", ["vim::PushObject", { "around": false }], "vim::AnyQuotes"]
+```
+
+This executes the operation immediately and doesn't require switching modes.
+
+#### Pattern 2: 4-Step Selection (for creating selections)
+
+Use this when you want to **select** text without modifying it:
+
+```json
+[
+  "vim::SwitchToVisualMode", // 1. Temporarily enter visual mode
+  ["vim::PushObject", { "around": false }], // 2. Set up the text object
+  "vim::AnyQuotes", // 3. Apply the text object
+  "vim::SwitchToNormalPreservingSelections" // 4. Exit visual mode, keep selection
+]
+```
+
+**Important:** You **must** use `vim::SwitchToNormalPreservingSelections` (not `vim::SwitchToNormalMode`) in step 4. The "PreservingSelections" variant keeps the selection active, while the regular `SwitchToNormalMode` would collapse it back to a cursor.
+
+### Available text objects
+
+When using operator keybindings, you can combine any operator (`vim::Delete`, `vim::Change`, `vim::Yank`) with these text objects:
+
+- `vim::Word` / `vim::BackWord` - word boundaries
+- `vim::AnyQuotes` - inside/around `"` or `'` (whichever is closer)
+- `vim::Quotes` - inside/around `"` or `'`
+- `vim::BackQuotes` - inside/around `` ` ``
+- `vim::Parentheses` - inside/around `()`
+- `vim::SquareBrackets` - inside/around `[]`
+- `vim::CurlyBrackets` - inside/around `{}`
+- `vim::AngleBrackets` - inside/around `<>`
+- `vim::Sentence` / `vim::Paragraph` - sentence/paragraph boundaries
+
+Use `"around": true` with `vim::PushObject` to include the surrounding delimiters, or `"around": false` to operate only on the content inside.
+
 ## Zed-specific features
 
 Zed is built on a modern foundation that (among other things) uses Tree-sitter and language servers to understand the content of the file you're editing and supports multiple cursors out of the box.
@@ -205,7 +336,6 @@ These text objects implement the behavior of the [mini.ai](https://github.com/ec
 #### Choosing Between Approaches
 
 - Use **AnyQuotes/AnyBrackets** if you:
-
   - Prefer traditional Vim behavior
   - Want consistent character-based selection prioritizing innermost delimiters
   - Need behavior that closely matches vanilla Vim's text objects

@@ -1100,8 +1100,8 @@ pub(crate) fn settings_data(cx: &App) -> Vec<SettingsPage> {
                     files: USER,
                 }),
                 SettingsPageItem::SettingItem(SettingItem {
-                    title: "Passive Modal Actions",
-                    description: "Enable Vim actions for keybinding without modal editing. All vim actions are available but the editor stays in normal mode. You must explicitly bind keys to Vim (and Helix) actions in your keymap.",
+                    title: "Always-On Modal Actions",
+                    description: "Always keep modal editing actions (Vim/Helix operators and text objects) available for keybindings without being in modal editing mode. Requires manual keybinding configuration in your keymap.",
                     field: Box::new(SettingField {
                         json_path: Some("passive_modal_actions"),
                         pick: |settings_content| settings_content.passive_modal_actions.as_ref(),
