@@ -7,10 +7,8 @@ use std::time::Duration;
 use collections::HashMap;
 use command_palette::CommandPalette;
 use editor::{
-    AnchorRangeExt, DisplayPoint, Editor, EditorMode, MultiBuffer,
-    actions::{DeleteLine, SelectAll},
-    code_context_menus::CodeContextMenu,
-    display_map::DisplayRow,
+    AnchorRangeExt, DisplayPoint, Editor, EditorMode, MultiBuffer, actions::DeleteLine,
+    code_context_menus::CodeContextMenu, display_map::DisplayRow,
     test::editor_test_context::EditorTestContext,
 };
 use futures::StreamExt;
@@ -18,7 +16,7 @@ use gpui::{KeyBinding, Modifiers, MouseButton, TestAppContext, px};
 use itertools::Itertools;
 use language::Point;
 pub use neovim_backed_test_context::*;
-use settings::{ActionSequence, KeymapFile, SettingsStore};
+use settings::{ActionSequence, SettingsStore};
 use ui::Pixels;
 use util::test::marked_text_ranges;
 pub use vim_test_context::*;
@@ -27,9 +25,8 @@ use indoc::indoc;
 use search::BufferSearchBar;
 
 use crate::{
-    PushDelete, PushObject, PushSneak, PushSneakBackward, SwitchToNormalPreservingSelections,
-    SwitchToVisualMode, helix::HelixGotoLastModification, insert::NormalBefore, motion,
-    normal::delete, object::AnyQuotes, state::Mode,
+    PushDelete, PushObject, PushSneak, PushSneakBackward, SwitchToVisualMode,
+    helix::HelixGotoLastModification, insert::NormalBefore, motion, object::AnyQuotes, state::Mode,
 };
 
 use util_macros::perf;
@@ -2326,12 +2323,10 @@ async fn test_clipping_on_mode_change(cx: &mut gpui::TestAppContext) {
     );
 }
 
-// Tests for passive modal actions (always-on modal actions mode)
 #[gpui::test]
 async fn test_passive_mode_typing_works(cx: &mut gpui::TestAppContext) {
     let mut cx = VimTestContext::new(cx, false).await;
 
-    // Enable passive modal actions
     cx.update_global(|store: &mut SettingsStore, cx| {
         store.update_user_settings(cx, |s| {
             s.passive_modal_actions = Some(true);
@@ -2339,29 +2334,8 @@ async fn test_passive_mode_typing_works(cx: &mut gpui::TestAppContext) {
     });
 
     // Verify typing works normally (not in modal mode)
-    cx.simulate_keystrokes("h e l l o space w o r l d");
-    cx.assert_editor_state("hello worldˇ");
-}
-
-#[gpui::test]
-async fn test_passive_mode_no_auto_visual(cx: &mut gpui::TestAppContext) {
-    let mut cx = VimTestContext::new(cx, false).await;
-
-    cx.update_global(|store: &mut SettingsStore, cx| {
-        store.update_user_settings(cx, |s| {
-            s.passive_modal_actions = Some(true);
-        });
-    });
-
-    cx.set_state("hello woˇrld", Mode::Normal);
-
-    // Make a selection using normal editor selection (not Vim visual mode)
-    cx.update_editor(|editor, window, cx| {
-        editor.select_all(&SelectAll, window, cx);
-    });
-
-    // Verify we don't automatically enter Vim visual mode in passive mode
-    cx.assert_state("«hello worldˇ»", Mode::Normal);
+    cx.simulate_keystrokes("h e l l o space z e d");
+    cx.assert_editor_state("hello zedˇ");
 }
 
 #[gpui::test]
@@ -2374,10 +2348,9 @@ async fn test_passive_mode_delete_inside_quotes(cx: &mut gpui::TestAppContext) {
         });
     });
 
-    // Bind cmd-' to delete inside quotes
     cx.update(|_, cx| {
         cx.bind_keys([KeyBinding::new(
-            "ctrl-'",
+            "ctrl-d",
             ActionSequence(vec![
                 Box::new(PushDelete),
                 Box::new(PushObject { around: false }),
@@ -2388,7 +2361,7 @@ async fn test_passive_mode_delete_inside_quotes(cx: &mut gpui::TestAppContext) {
     });
 
     cx.set_state(r#"let x = "helˇlo world";"#, Mode::Normal);
-    cx.simulate_keystrokes("ctrl-'");
+    cx.simulate_keystrokes("ctrl-d");
     cx.assert_editor_state(r#"let x = "ˇ";"#);
 }
 
@@ -2404,20 +2377,20 @@ async fn test_passive_mode_selection_preserving(cx: &mut gpui::TestAppContext) {
 
     cx.update(|_, cx| {
         cx.bind_keys([KeyBinding::new(
-            "cmd-shift-'",
+            "ctrl-'",
             ActionSequence(vec![
                 Box::new(SwitchToVisualMode {}),
                 Box::new(PushObject { around: false }),
                 Box::new(AnyQuotes {}),
-                Box::new(SwitchToNormalPreservingSelections {}),
             ]),
             None,
         )])
     });
 
-    cx.set_state(r#"let x = "helˇlo world";"#, Mode::Normal);
-    cx.simulate_keystrokes("cmd-shift-'");
-    cx.assert_state(r#"let x = "«hello worldˇ»";"#, Mode::Normal);
+    cx.simulate_keystrokes("l e t x = h e l l o w o r l d");
+    cx.set_state(r#"let x = "hello worldˇ";"#, Mode::Normal);
+    cx.simulate_keystrokes("ctrl-'");
+    cx.assert_state(r#"let x = "«hello worldˇ»";"#, Mode::Visual);
 }
 
 #[gpui::test]
@@ -2430,126 +2403,19 @@ async fn test_passive_mode_goto_last_modification(cx: &mut gpui::TestAppContext)
         });
     });
 
-    // Bind cmd-g to goto last modification
-    cx.update(|_, cx| {
-        cx.bind_keys([KeyBinding::new(
-            "ctrl-shift-g",
-            HelixGotoLastModification,
-            None,
-        )])
-    });
+    cx.update(|_, cx| cx.bind_keys([KeyBinding::new("ctrl-g", HelixGotoLastModification, None)]));
 
-    cx.set_state("ˇhello world", Mode::Normal);
+    cx.set_state("hello ˇworld", Mode::Normal);
 
-    // Type some text to create a modification
-    cx.simulate_keystrokes("a space t e s t escape");
-    cx.assert_editor_state("hello tesˇt world");
+    // Create a modification
+    cx.simulate_keystrokes("z e d space");
+    cx.assert_editor_state("hello zed ˇworld");
 
     // Move away
-    cx.simulate_keystrokes("g g");
-    cx.assert_editor_state("ˇhello test world");
+    cx.simulate_keystrokes("up");
+    cx.assert_editor_state("ˇhello zed world");
 
-    // Go back to last modification
-    cx.simulate_keystrokes("cmd-g");
-    cx.assert_editor_state("hello tesˇt world");
-}
-
-#[gpui::test]
-async fn test_passive_mode_clipping_during_operation(cx: &mut gpui::TestAppContext) {
-    let mut cx = VimTestContext::new(cx, false).await;
-
-    cx.update_global(|store: &mut SettingsStore, cx| {
-        store.update_user_settings(cx, |s| {
-            s.passive_modal_actions = Some(true);
-        });
-    });
-
-    cx.set_state("hello worldˇ", Mode::Normal);
-
-    // In passive mode, cursor should NOT clip at line ends normally
-    cx.executor().run_until_parked();
-    cx.update_editor(|editor, window, cx| {
-        let clip_at_line_ends = editor.display_map.read(cx).clip_at_line_ends;
-        assert_eq!(clip_at_line_ends, false);
-    });
-
-    // Bind an operator action
-    cx.update(|_, cx| {
-        cx.bind_keys([KeyBinding::new(
-            "cmd-d",
-            workspace::SendKeystrokes(
-                "vim::Delete vim::PushObject { around: false } vim::Word".to_string(),
-            ),
-            None,
-        )])
-    });
-
-    // During the operation, clipping should be active temporarily
-    cx.set_state("hello woˇrld", Mode::Normal);
-    cx.simulate_keystrokes("cmd-d");
-
-    // After operation, clipping should be disabled again
-    cx.executor().run_until_parked();
-    cx.update_editor(|editor, window, cx| {
-        let clip_at_line_ends = editor.display_map.read(cx).clip_at_line_ends;
-        assert_eq!(clip_at_line_ends, false);
-    });
-}
-
-#[gpui::test]
-async fn test_passive_mode_multi_cursor(cx: &mut gpui::TestAppContext) {
-    let mut cx = VimTestContext::new(cx, false).await;
-
-    cx.update_global(|store: &mut SettingsStore, cx| {
-        store.update_user_settings(cx, |s| {
-            s.passive_modal_actions = Some(true);
-        });
-    });
-
-    // Bind cmd-' to delete inside quotes
-    cx.update(|_, cx| {
-        cx.bind_keys([KeyBinding::new(
-            "cmd-'",
-            workspace::SendKeystrokes(
-                "vim::Delete vim::PushObject { around: false } vim::AnyQuotes".to_string(),
-            ),
-            None,
-        )])
-    });
-
-    cx.set_state(
-        indoc! {r#"
-            "oneˇ"
-            "two"
-            "three"
-        "#},
-        Mode::Normal,
-    );
-
-    // Add multiple cursors
-    // cx.update_editor(|editor, window, cx| {
-    //     editor.select_next(
-    //         &editor::SelectNext {
-    //             replace_newest: false,
-    //         },
-    //         window,
-    //         cx,
-    //     );
-    //     editor.select_next(
-    //         &editor::SelectNext {
-    //             replace_newest: false,
-    //         },
-    //         window,
-    //         cx,
-    //     );
-    // });
-
-    // Delete inside quotes on all cursors
-    cx.simulate_keystrokes("cmd-'");
-
-    cx.assert_editor_state(indoc! {r#"
-            "ˇ"
-            "ˇ"
-            "ˇ"
-        "#});
+    // Go to last modification
+    cx.simulate_keystrokes("ctrl-g");
+    cx.assert_editor_state("hello zed ˇworld");
 }

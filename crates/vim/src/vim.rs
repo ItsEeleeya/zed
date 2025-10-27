@@ -477,6 +477,7 @@ impl editor::Addon for VimAddon {
 /// The state pertaining to Vim mode.
 pub(crate) struct Vim {
     pub(crate) mode: Mode,
+    pub(crate) passive_mode: bool,
     pub last_mode: Mode,
     pub temp_mode: bool,
     pub status_label: Option<SharedString>,
@@ -500,7 +501,6 @@ pub(crate) struct Vim {
     last_command: Option<String>,
     running_command: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
-    pub(crate) passive_mode: bool,
 }
 
 // Hack: Vim intercepts events dispatched to a window and updates the view in response.

@@ -457,14 +457,7 @@ impl Vim {
             Some(Operator::Object { around }) => match self.maybe_pop_operator() {
                 Some(Operator::Change) => self.change_object(object, around, times, window, cx),
                 Some(Operator::Delete) => self.delete_object(object, around, times, window, cx),
-                Some(Operator::Yank) => {
-                    log::info!(
-                        "[VIM][normal_object] executing Yank on object (around={}, times={:?})",
-                        around,
-                        times
-                    );
-                    self.yank_object(object, around, times, window, cx)
-                }
+                Some(Operator::Yank) => self.yank_object(object, around, times, window, cx),
                 Some(Operator::Indent) => {
                     self.indent_object(object, around, IndentDirection::In, times, window, cx)
                 }
